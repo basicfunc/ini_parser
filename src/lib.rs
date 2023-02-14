@@ -44,7 +44,7 @@ macro_rules! error {
 }
 
 // The Ini struct is defined as a tuple struct that contains a single element of type HashMap<String, HashMap<String, String>> which will store (section_name: (key, value) pairs)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Ini(HashMap<String, HashMap<String, String>>);
 
 impl std::fmt::Display for Ini {
@@ -176,7 +176,7 @@ pub fn parse_ini(src: String) -> Result<Ini, String> {
 }
 
 // Parses the provided INI-file of name `filename` and returns a Result containing either an `Ini` struct representing the parsed INI data, or an error message as a `String`.
-pub fn parse_ini_file(filename: &String) -> Result<Ini, String> {
+pub fn parse_ini_file(filename: &str) -> Result<Ini, String> {
     if !filename.ends_with(".ini") {
         warn!("Warning: \"{filename}\" must end with '.ini'.");
     }
@@ -219,5 +219,70 @@ pub fn parse_ini_file(filename: &String) -> Result<Ini, String> {
                 Err(error!("Unepected error occured while reading from specified file, there are many reasons of this error such as invalid data in the file, disk errors, or insufficient memory."))
             }
         }
+    }
+}
+
+// Testing the code...
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_ini() {
+        let input = r#"
+        # This is section.
+        [section1]
+        key1=value1
+        key2=value2
+
+        ; This is yet another section.
+
+        [section2]
+        key3=value3
+        key4=value4
+        "#;
+        let expected_output = Ini([
+            (
+                "section1".to_string(),
+                [
+                    ("key1".to_string(), "value1".to_string()),
+                    ("key2".to_string(), "value2".to_string()),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
+            ),
+            (
+                "section2".to_string(),
+                [
+                    ("key3".to_string(), "value3".to_string()),
+                    ("key4".to_string(), "value4".to_string()),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect());
+        let result = parse_ini(input.to_string());
+        assert_eq!(result, Ok(expected_output));
+    }
+
+    #[test]
+    fn test_comment() {
+        let input = r#"
+        #Lorem ipsum dolor sit amet consectetur adipisicing elit.
+        ;Ipsam labore natus dolorem.
+        ; Voluptates quas explicabo, quam neque perferendis?
+        # Nobis velit repellendus ipsa, accusantium sit reprehenderit odio est?
+        # Inventore architecto, suscipit!
+        "#;
+
+        let expected_output = Ini::new();
+
+        let result = parse_ini(input.to_string());
+        assert_eq!(result, Ok(expected_output));
     }
 }
