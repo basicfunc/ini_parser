@@ -3,29 +3,30 @@ use std::env;
 use std::fs::File;
 use std::io::Read;
 
+// The Ini struct is defined as a tuple struct that contains a single element of type HashMap<String, HashMap<String, String>> which will store (section_name: (key, value) pairs)
 #[derive(Debug, Clone)]
-struct Section(HashMap<String, Option<Vec<HashMap<String, String>>>>);
+struct Ini(HashMap<String, HashMap<String, String>>);
 
-impl Section {
+impl Ini {
+    // This method will return a new instance of Ini with an empty HashMap.
     fn new() -> Self {
         Self(HashMap::new())
     }
 }
 
+// The `IniParser` struct is defined as a struct that contains a single field stream of type String which carries the source of file to be parsed.
 #[derive(Debug, Clone)]
-struct Ini {
+struct IniParser {
     stream: String,
-    sections: Section,
 }
 
-impl Ini {
+impl IniParser {
+    // This method will return a new instance of IniParser with bytes passed as argument.
     fn new(bytes: String) -> Self {
-        Self {
-            stream: bytes,
-            sections: Section::new(),
-        }
+        Self { stream: bytes }
     }
 
+    // The `remove_comments` method remove comments from the input file.
     fn remove_comments(&mut self) {
         let mut uncommented_src = String::new();
 
@@ -46,27 +47,34 @@ impl Ini {
         self.stream = uncommented_src
     }
 
-    fn parse(&mut self) -> Result<Section, String> {
-        let lines = self.stream.lines();
-        let mut section = String::new();
-        let mut values: Vec<HashMap<String, String>> = vec![];
+    // The `parse` method parses the contents of the file into the Ini data structure, and return an error if the file is not well-formed.
+    fn parse(&mut self) -> Result<Ini, String> {
+        // Removing Comments out of source file.
+        self.remove_comments();
 
+        // Iterating over every line of source file.
+        let lines = self.stream.lines();
+
+        // Temporary variable to hold values of current sections.
+        let mut curr_section = String::new();
+        let mut section: Ini = Ini::new();
+
+        // Iterating over each line of source code.
         for (idx, line) in lines.into_iter().enumerate() {
+            // Removing extra whitespaces.
             let line = line.trim();
 
+            // Because newline and empty line don't needed to be parsed.
             if line == "\n" || line.is_empty() {
                 continue;
-            } else if line.starts_with('[') && line.ends_with(']') {
-                if !(section.is_empty()) {
-                    if values.is_empty() {
-                        self.sections.0.insert(section, None);
-                    } else {
-                        self.sections.0.insert(section, Some(values.clone()));
-                    }
-                }
-                section = line[1..line.len() - 1].into();
-                values = vec![];
-            } else {
+            }
+            // Identifying [section] name and instantiating Hashmap with key of name `section`.
+            else if line.starts_with('[') && line.ends_with(']') {
+                curr_section = line[1..line.len() - 1].trim().into();
+                section.0.insert(curr_section.to_string(), HashMap::new());
+            }
+            // Parsing key-value pairs.
+            else {
                 let parts: Vec<&str> = line.split('=').collect();
 
                 if parts.len() != 2 {
@@ -75,14 +83,15 @@ impl Ini {
                         idx + 1
                     ));
                 } else {
-                    let mut pairs: HashMap<String, String> = HashMap::new();
-                    pairs.insert(parts[0].into(), parts[1].into());
-
-                    values.push(pairs);
+                    section
+                        .0
+                        .get_mut(&curr_section)
+                        .unwrap()
+                        .insert(parts[0].to_string(), parts[1].to_string());
                 }
             }
         }
-        Ok(self.sections.to_owned())
+        Ok(section.to_owned())
     }
 }
 
@@ -101,7 +110,7 @@ fn open_ini(filename: &String) -> Result<String, std::io::Error> {
 fn main() {
     let args: Vec<_> = env::args().collect();
     if args.len() == 2 {
-        let mut res = Ini::new((open_ini(&args[1])).unwrap());
+        let mut res = IniParser::new((open_ini(&args[1])).unwrap());
         res.remove_comments();
         let parse = res.parse().unwrap();
 
